@@ -42,7 +42,7 @@ h3 {
 p {
     font-size: 1em;
     font-weight: 300;
-    line-height: 1.5em;
+    line-height: 1.6em;
     letter-spacing: 0.02em;
     color: #4a4a4a; /* greyish-brown */
 }
@@ -120,3 +120,17 @@ p {
 #about-img-outer-box {
     padding: 3em;
 }
+
+#about-social-div {
+    padding: 2em;
+    width: 5em;
+    height: 2em;
+    margin: 0 auto;
+}
+
+.about-social-box {
+    float: left;
+    margin-left: 0.5em;
+}
+
+
