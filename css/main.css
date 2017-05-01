@@ -123,14 +123,14 @@ p {
 
 #about-social-div {
     padding: 2em;
-    width: 5em;
+    width: 6em;
     height: 2em;
     margin: 0 auto;
 }
 
 .about-social-box {
     float: left;
-    margin-left: 0.5em;
+    margin-left: 1em;
 }
 
 
