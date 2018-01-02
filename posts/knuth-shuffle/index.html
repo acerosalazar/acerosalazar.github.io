@@ -37,20 +37,20 @@
                 </header>
                 <section id="post-body">
                     <p>A classic algorithm for shuffling the elements of an array in linear time.</p>
-<div class="highlight"><pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-swift" data-lang="swift"><span style="color:#00f">struct</span> <span style="color:#2b91af">Random</span> {
-    <span style="color:#00f">static</span> <span style="color:#00f">func</span> uniform(range: Range&lt;Int&gt;) -&gt; Int {
-        <span style="color:#00f">let</span> lower = UInt32(range.lowerBound)
-        <span style="color:#00f">let</span> upper = UInt32(range.upperBound)
-        <span style="color:#00f">let</span> random = (arc4random_uniform(upper - lower) + lower)
-        <span style="color:#00f">return</span> Int(random)
+<div class="highlight"><pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-swift" data-lang="swift"><span style="font-weight:bold">struct</span> <span style="color:#458;font-weight:bold">Random</span> { 
+    <span style="font-weight:bold">static</span> <span style="font-weight:bold">func</span> <span style="color:#900;font-weight:bold">uniform</span>(range: <span style="color:#999">Range</span>&lt;<span style="color:#999">Int</span><span style="font-weight:bold">&gt;</span>) -&gt; <span style="color:#999">Int</span> {
+        <span style="font-weight:bold">let</span> <span style="color:#008080">lower</span> = <span style="color:#999">UInt32</span>(range.lowerBound)
+        <span style="font-weight:bold">let</span> <span style="color:#008080">upper</span> = <span style="color:#999">UInt32</span>(range.upperBound)
+        <span style="font-weight:bold">let</span> <span style="color:#008080">random</span> = (arc4random_uniform(upper <span style="font-weight:bold">-</span> lower) <span style="font-weight:bold">+</span> lower)
+        <span style="font-weight:bold">return</span> <span style="color:#999">Int</span>(random)
     }
 }
 
-<span style="color:#00f">func</span> shuffle&lt;T&gt;(array: <span style="color:#00f">inout</span> [T]) {
-    <span style="color:#00f">let</span> n = array.count
-    <span style="color:#00f">for</span> i <span style="color:#00f">in</span> 0..&lt;n {
-        <span style="color:#00f">let</span> j = Random.uniform(range: i..&lt;n)
-        <span style="color:#00f">let</span> item = array[j]
+<span style="font-weight:bold">func</span> <span style="color:#900;font-weight:bold">shuffle</span>&lt;T<span style="font-weight:bold">&gt;</span>(array: <span style="font-weight:bold">inout</span> [T]) {
+    <span style="font-weight:bold">let</span> <span style="color:#008080">n</span> = array.count
+    <span style="font-weight:bold">for</span> i <span style="font-weight:bold">in</span> <span style="color:#099">0.</span>.&lt;n {
+        <span style="font-weight:bold">let</span> <span style="color:#008080">j</span> = Random.uniform(range: i..&lt;n)
+        <span style="font-weight:bold">let</span> <span style="color:#008080">item</span> = array[j]
         array[j] = array[i]
         array[i] = item
     }
