@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en-us">
+	<head>
+		<meta charset="utf-8">
+		<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<meta name="author" content="Felix J. Acero">
+		<meta name="description" content="Felix J. Acero · Software engineer">
+		<meta name="generator" content="Hugo 0.40.3" />
+		<title>Generators &middot; Felix J. Acero</title>
+		<link rel="shortcut icon" href="http://acerosalazar.com/images/favicon.ico">
+		<link rel="stylesheet" href="http://acerosalazar.com/css/style.css">
+		<link rel="stylesheet" href="http://acerosalazar.com/css/font-awesome.min.css">
+	</head>
+
+    <body>
+       <nav class="main-nav">
+	
+	
+		<a href='http://acerosalazar.com/'>Home</a>
+	
+	<a href='http://acerosalazar.com/posts'>Posts</a>
+	<a href='http://acerosalazar.com/about'>About</a>
+	
+</nav>
+
+        <section id="wrapper" class="post">
+            <article>
+                <header>
+                    <h1>
+                        Generators
+                    </h1>
+                    <h2 class="headline">
+                    May 25, 2018
+                    · 8 minute read
+                    </h2>
+                </header>
+                <section id="post-body">
+                    
+
+<h3 id="tl-dr">TL;DR</h3>
+
+<blockquote>
+<ul>
+<li>Data generators help us write more succinct code</li>
+<li>They encapsulate the logic needed to create a sequence of values</li>
+<li>A suitable way of implementing a data generator in swift is through the <code>Sequence</code> type</li>
+<li>Data generators can come in handy in many occasions, for instance during unit testing</li>
+</ul>
+</blockquote>
+
+<h3 id="motivation">Motivation</h3>
+
+<p>Often times during testing we need to come up with a set of inputs to test certain functionality. The traditional way to approach this task is to carefully craft a set of values that will test different paths in our code. A test for the case where the input is empty, another one for the case where the input is too large and another one where the input has an invalid value. Assuming we can foresee all the possible corner cases this approach could work quite well.</p>
+
+<p>A simple, yet powerful way of complementing this approach, is to also include a test that generates a set of random inputs to be fed into the code under test. The hope is that these randomly generated cases, would help us uncover scenarios that we did not foresee and for which we did not include a specific  test case. In this post, we will explore an elegant way of implementing random input generators for our tests using swift&rsquo;s <code>Sequence</code> type.</p>
+
+<div class="center"><span class="center separator">***</span></div>
+
+
+<p>Let&rsquo;s suppose we need to test a function that sorts the elements of an array in ascending order.</p>
+<div class="highlight"><pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-swift" data-lang="swift"><span style="color:#998;font-style:italic">/// Sorts the given array in ascending order</span>
+<span style="font-weight:bold">func</span> <span style="color:#900;font-weight:bold">sort</span>&lt;T: <span style="color:#999">Comparable</span><span style="font-weight:bold">&gt;</span>(<span style="font-weight:bold">_</span> array: [T]) -&gt; [T] {
+    <span style="font-weight:bold">return</span> array.sorted
+}</code></pre></div>
+<p>To make our test code simpler, let&rsquo;s define a utility function to help us check whether an array is sorted in ascending order.</p>
+<div class="highlight"><pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-swift" data-lang="swift"><span style="color:#998;font-style:italic">/// Checks whether the given array is sorted in ascending order</span>
+<span style="font-weight:bold">func</span> <span style="color:#900;font-weight:bold">isSorted</span>&lt;T: <span style="color:#999">Comparable</span><span style="font-weight:bold">&gt;</span>(<span style="font-weight:bold">_</span> array: [T]) -&gt; <span style="color:#999">Bool</span> {
+    <span style="font-weight:bold">guard</span> array.count <span style="font-weight:bold">&gt;</span> <span style="color:#099">1</span> <span style="font-weight:bold">else</span> { <span style="font-weight:bold">return</span> <span style="font-weight:bold">true</span> }
+    <span style="font-weight:bold">for</span> i <span style="font-weight:bold">in</span> <span style="color:#099">0.</span>.&lt;array.count<span style="font-weight:bold">-</span><span style="color:#099">2</span> {
+        <span style="font-weight:bold">guard</span> array[i] <span style="font-weight:bold">&lt;=</span> array[i<span style="font-weight:bold">+</span><span style="color:#099">1</span>] <span style="font-weight:bold">else</span> { <span style="font-weight:bold">return</span> <span style="font-weight:bold">false</span> }
+    }
+    <span style="font-weight:bold">return</span> <span style="font-weight:bold">true</span>
+}</code></pre></div>
+<p>With these two functions in hand, we can now focus on implementing our test.</p>
+
+<p>As mentioned before, there are several tests that should be included to thoroughly test a function like <code>sort</code>. In this post, however, we will focus on using a data generator to create a set of random inputs to test our code.</p>
+
+<p>Our goal is to achieve client code that looks like this:</p>
+<div class="highlight"><pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-swift" data-lang="swift"><span style="font-weight:bold">func</span> <span style="color:#900;font-weight:bold">testSort</span>() {
+    <span style="font-weight:bold">for</span> <span style="font-weight:bold">_</span> <span style="font-weight:bold">in</span> <span style="color:#099">0.</span>.&lt;<span style="color:#099">100</span> {
+        <span style="color:#998;font-style:italic">// Given </span>
+        <span style="font-weight:bold">let</span> <span style="color:#008080">size</span> = <span style="color:#999">Int</span>(arc4_random(<span style="color:#099">10</span>))
+        <span style="font-weight:bold">let</span> <span style="color:#008080">input</span> = <span style="color:#999">Array</span>(IntGenerator(range: <span style="color:#099">0.</span>.&lt;<span style="color:#099">100</span>).<span style="font-weight:bold">prefix</span>(size))
+
+        <span style="color:#998;font-style:italic">// When</span>
+        <span style="font-weight:bold">let</span> <span style="color:#008080">sortedInput</span> = sort(input)
+
+        <span style="color:#998;font-style:italic">// Then</span>
+        assertTrue(isSorted(sortedInput), <span style="color:#b84">&#34;</span><span style="color:#b84">\(</span>sortedInput<span style="color:#b84">)</span><span style="color:#b84"> is not sorted&#34;</span>)
+    }
+}</code></pre></div>
+<p>We start off by selecting a random <code>size</code> for the <code>input</code> array. Then we use the <code>IntGenerator</code> type to create an array with random integers in the range <code>0..&lt;100</code>. In the <code>when</code> section, we invoke the <code>sort</code> function passing our randomly generated input to it. Towards the end of the test, we make use of the <code>isSorted</code> utility function to verify that the <code>sortedInput</code> has been properly sorted. To make our test more exhaustive, we wrap all the test code inside of a <code>for-loop</code>, which will cause the test to run a 100 times, using inputs of different sizes and values each time.</p>
+
+<h3 id="implementation">Implementation</h3>
+
+<p>Now let&rsquo;s look at the implementation of our data generator: <code>IntGenerator</code>.</p>
+<div class="highlight"><pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-swift" data-lang="swift"><span style="font-weight:bold">struct</span> <span style="color:#458;font-weight:bold">IntGenerator</span>: Sequence, IteratorProtocol { }</code></pre></div>
+<p>We start off by declaring conformance to <code>Sequence</code> and to the <code>IteratorProtocol</code>. Doing this allows us to treat the generator using the familiar <code>Sequence</code> API, which includes functions like <code>map</code>, <code>filter</code>, <code>forEach</code>, <code>prefix</code>, <code>contains</code>, etc. Strictly speaking, we could achieve this result by simply conforming to <code>Sequence</code>, but in my opinion conforming also to the <code>IteratorProtocol</code> leads to a tidier implementation.</p>
+
+<p>Conforming to these two protocols requires us to implement two methods:</p>
+
+<ul>
+<li><code>Sequence :: makeIterator() -&gt; Self.Iterator</code></li>
+<li><code>IteratorProtocol :: next() -&gt; Element?</code></li>
+</ul>
+
+<p>Fortunately, the standard library has a default implementation (<sup class="footnote-ref" id="fnref:1"><a href="#fn:1">1</a></sup>) of the <code>makeIterator</code> method for types that also conform to the <code>IteratorProtocol</code>, leaving us with only one required method to implement: <code>next() -&gt; Element?</code>. According to the documentation, the implementation of this method should be such that invoking it consecutively would return the next element in the sequence and return <code>nil</code> once the sequence is complete.</p>
+
+<p>Before jumping into the implementation, let&rsquo;s spend a moment looking at the signature that the <code>next() -&gt; Element?</code> method will take in our data generator.</p>
+<div class="highlight"><pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-swift" data-lang="swift"><span style="font-weight:bold">struct</span> <span style="color:#458;font-weight:bold">IntGenerator</span>: Sequence, IteratorProtocol {
+    <span style="font-weight:bold">mutating</span> <span style="font-weight:bold">func</span> <span style="color:#900;font-weight:bold">next</span>() -&gt; <span style="color:#999">Int</span>? {
+        <span style="color:#998;font-style:italic">// ...</span>
+    }
+}</code></pre></div>
+<p>The signature specifies <code>Int?</code> as the return value of the <code>next()</code> method. This is in line with our goal of producing a sequence of random integers. The return type has to be optional so that we can use <code>nil</code> to indicate the end of the sequence. This behavior, however, depends entirely on our implementation, allowing for the creation of both <em>finite</em> and <em>infinite</em> sequences. A <em>finite</em> sequence would be a sequence that eventually returns <code>nil</code> on it&rsquo;s <code>next()</code> method; an <em>infinite</em> sequence, on the other hand, would be a sequence that always returns a value. <!-- With this definitions in mind, it should be clear that the previous implementation makes our `IntGenerator` an infinite sequence. --></p>
+
+<p>Another aspect to highlight in the signature of the <code>next()</code> method is that is declared as <code>mutating</code>. This is required because our generator is a <code>struct</code> and because is very common for the <code>next() -&gt; Element?</code> method to modify the internal state of the type (<sup class="footnote-ref" id="fnref:2"><a href="#fn:2">2</a></sup>).</p>
+
+<p>Now, let&rsquo;s see a possible implementation of the <code>next()</code> method for our generator.</p>
+<div class="highlight"><pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-swift" data-lang="swift"><span style="font-weight:bold">struct</span> <span style="color:#458;font-weight:bold">IntGenerator</span>: Sequence, IteratorProtocol {
+    <span style="font-weight:bold">mutating</span> <span style="font-weight:bold">func</span> <span style="color:#900;font-weight:bold">next</span>() -&gt; <span style="color:#999">Int</span>? {
+        <span style="font-weight:bold">let</span> <span style="color:#008080">range</span>: <span style="color:#999">Range</span>&lt;<span style="color:#999">UInt32</span><span style="font-weight:bold">&gt;</span> = <span style="color:#099">0.</span>.&lt;<span style="color:#099">100</span>
+        <span style="font-weight:bold">let</span> <span style="color:#008080">min</span>: <span style="color:#999">UInt32</span> = range.lowerBound 
+        <span style="font-weight:bold">let</span> <span style="color:#008080">max</span>: <span style="color:#999">UInt32</span> = range.upperBound 
+        <span style="font-weight:bold">let</span> <span style="color:#008080">distance</span>: <span style="color:#999">UInt32</span> = max <span style="font-weight:bold">-</span> min 
+        <span style="font-weight:bold">let</span> <span style="color:#008080">value</span> = arc4random_uniform(distance) <span style="font-weight:bold">+</span> min
+        <span style="font-weight:bold">return</span> <span style="color:#999">Int</span>(value)
+    }
+}</code></pre></div>
+<p>We define a range with bounds <code>0..&lt;100</code> and then use the <code>arc4random_uniform()</code> API to obtain a random <code>UInt32</code> value in the desired range. While this implementation will work fine, there is a couple of details that can be tweaked. For example,  we would like to give clients the possibility of deciding the range of the generated inputs.</p>
+<div class="highlight"><pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-swift" data-lang="swift"><span style="font-weight:bold">struct</span> <span style="color:#458;font-weight:bold">IntGenerator</span>: Sequence, IteratorProtocol {
+
+    <span style="font-weight:bold">private</span> <span style="font-weight:bold">let</span> <span style="color:#008080">range</span>: <span style="color:#999">Range</span>&lt;<span style="color:#999">UInt32</span><span style="font-weight:bold">&gt;</span>
+
+    <span style="font-weight:bold">init</span>(range: <span style="color:#999">Range</span>&lt;<span style="color:#999">UInt32</span><span style="font-weight:bold">&gt;</span>) {
+        <span style="font-weight:bold">self</span>.range = range
+    }
+
+    <span style="font-weight:bold">mutating</span> <span style="font-weight:bold">func</span> <span style="color:#900;font-weight:bold">next</span>() -&gt; <span style="color:#999">Int</span>? {
+        <span style="font-weight:bold">let</span> <span style="color:#008080">min</span>: <span style="color:#999">UInt32</span> = range.lowerBound 
+        <span style="font-weight:bold">let</span> <span style="color:#008080">max</span>: <span style="color:#999">UInt32</span> = range.upperBound 
+        <span style="font-weight:bold">let</span> <span style="color:#008080">distance</span>: <span style="color:#999">UInt32</span> = max <span style="font-weight:bold">-</span> min 
+        <span style="font-weight:bold">let</span> <span style="color:#008080">value</span> = arc4random_uniform(distance) <span style="font-weight:bold">+</span> min
+        <span style="font-weight:bold">return</span> <span style="color:#999">Int</span>(value)
+    }
+}</code></pre></div>
+<p>Notice how the <code>min</code>, <code>max</code> and <code>distance</code> variables will always have the same values? We can take advantage of this situation and turn them into constant attributes that are derived during the construction of the generator. Also, it seems that for generating the next random number we only need the <code>min</code> and <code>distance</code> values, so we might as well keep only these two attributes around.</p>
+<div class="highlight"><pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-swift" data-lang="swift"><span style="font-weight:bold">struct</span> <span style="color:#458;font-weight:bold">IntGenerator</span>: Sequence, IteratorProtocol {
+    <span style="font-weight:bold">private</span> <span style="font-weight:bold">let</span> <span style="color:#008080">min</span>: <span style="color:#999">UInt32</span>
+    <span style="font-weight:bold">private</span> <span style="font-weight:bold">let</span> <span style="color:#008080">distance</span>: <span style="color:#999">UInt32</span>
+
+    <span style="font-weight:bold">init</span>(range: <span style="color:#999">Range</span>&lt;<span style="color:#999">UInt32</span><span style="font-weight:bold">&gt;</span>) {
+        <span style="font-weight:bold">self</span>.distance = range.upperBound <span style="font-weight:bold">-</span> range.lowerBound
+        <span style="font-weight:bold">self</span>.min = range.lowerBound
+    }
+
+    <span style="font-weight:bold">mutating</span> <span style="font-weight:bold">func</span> <span style="color:#900;font-weight:bold">next</span>() -&gt; <span style="color:#999">Int</span>? {
+        <span style="font-weight:bold">let</span> <span style="color:#008080">value</span> = arc4random_uniform(distance) <span style="font-weight:bold">+</span> min
+        <span style="font-weight:bold">return</span> <span style="color:#999">Int</span>(value)
+    }
+}</code></pre></div>
+<h3 id="usage-and-limitations">Usage and Limitations</h3>
+
+<p>The previous implementation looks much tidier and efficient than our initial approach, and still allows us to write the client code we were aiming for. Specifically:</p>
+<div class="highlight"><pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-swift" data-lang="swift"><span style="color:#998;font-style:italic">// ...</span>
+<span style="font-weight:bold">let</span> <span style="color:#008080">size</span> = <span style="color:#999">Int</span>(arc4_random(<span style="color:#099">10</span>))
+<span style="font-weight:bold">let</span> <span style="color:#008080">input</span> = <span style="color:#999">Array</span>(IntGenerator(range: <span style="color:#099">0.</span>.&lt;<span style="color:#099">100</span>).<span style="font-weight:bold">prefix</span>(size))
+<span style="color:#998;font-style:italic">// ...</span></code></pre></div>
+<p>We can very easily provide different ranges (e.g: <code>0..&lt;50</code>, <code>0...&lt;1_000</code>, etc), and decide how many values we need in the given interval thanks to the <code>prefix</code> API. Also, since <code>IntGenerator</code> conforms to the <code>Sequence</code> protocol, we get access to other handy APIs like <code>filter</code>, <code>map</code>, <code>flatMap</code> and <code>contains</code>.</p>
+
+<p>An important caveat of the current implementation, however, is that if we are not careful in the usage we might end up with an infinite execution loop.</p>
+
+<p>Consider the following example:</p>
+<div class="highlight"><pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-swift" data-lang="swift"><span style="color:#998;font-style:italic">// This line will be executed infinitely</span>
+<span style="font-weight:bold">let</span> <span style="color:#008080">infiniteSquares</span> = <span style="color:#999">Array</span>(IntGenerator(range: <span style="color:#099">0.</span>.&lt;<span style="color:#099">100</span>).map { <span style="color:#008080">$0</span> <span style="font-weight:bold">*</span> <span style="color:#008080">$0</span> })
+
+<span style="color:#998;font-style:italic">// This line will finish and return the expected value</span>
+<span style="font-weight:bold">let</span> <span style="color:#008080">finiteSquares</span> = <span style="color:#999">Array</span>(IntGenerator(range: <span style="color:#099">0.</span>.&lt;<span style="color:#099">100</span>).<span style="font-weight:bold">prefix</span>(<span style="color:#099">10</span>).map { <span style="color:#008080">$0</span> <span style="font-weight:bold">*</span><span style="color:#099">0</span> })</code></pre></div>
+<p>The problem in this case stems from our implementation of the <code>next()</code> method. In theory the implementation of this method should return <code>nil</code> once the sequence is finished. Our implementation, however, always returns a value; thus creating an <em>infinite</em> sequence. <!-- It won't surprise you then to hear that this implementation can be a double-edged sword. On the one hand, we can create arbitrarily long sequences of random numbers, on the other hand, if we are not careful our code could enter an infinite loop. --></p>
+
+<p>Looking closer at the problem, though, we could say that the real issue lays on <em>eagerly computing all the values in the sequence</em> before passing it to the <code>Array</code> constructor. From this perspective the solution also seems clearer: figure out a way of <em>lazily computing only the values in the collection that will be actually used</em>. A common way of approaching this task is through the usage of <strong>streams</strong>, which we will explore in a future post.</p>
+<div class="footnotes">
+
+<hr />
+
+<ol>
+<li id="fn:1"><a href="https://github.com/apple/swift/blob/433c426d935483f8208c0221108e7291881c9058/1/public/core/Sequence.swift#L628">Default Implementation of Sequence type for Iterators</a>
+ <a class="footnote-return" href="#fnref:1"><sup>[return]</sup></a></li>
+<li id="fn:2">To understand why, imagine that we are implementing the <code>next</code> method in a collection like a Linked List. In this case the <code>next</code> method would return the next element in the list, and <code>nil</code> once the list has been exhausted. A straight forward way of implementing this functionality would be to have an <code>optional</code> attribute inside our iterator which would be <em>updated</em> every time the <code>next</code> method is called. This <em>update</em> will entail a <em>mutation of the state</em> of our data structure, and will thus require the <code>mutating</code> keyword in case our iterator is a <code>struct</code>.
+ <a class="footnote-return" href="#fnref:2"><sup>[return]</sup></a></li>
+</ol>
+</div>
+
+                </section>
+            </article>
+            <footer id="footer">
+    
+        <div id="social">
+	
+    <a class="symbol" href="https://www.github.com/acerosalazar">
+        <i class="fa fa-github-square"></i>
+    </a>
+  
+    <a class="symbol" href="https://www.linkedin.com/in/felix-javier-acero-salazar-8979985b/">
+        <i class="fa fa-linkedin-square"></i>
+    </a>
+  
+    <a class="symbol" href="https://www.twitter.com/acerosalazar">
+        <i class="fa fa-twitter-square"></i>
+    </a>
+  
+</div>
+
+    
+    <p class="small">
+        Copyright © 2018 Felix J. Acero
+    </p>
+    <p class="small">
+      Powered by <a href="http://www.gohugo.io/">Hugo
+    </p>
+</footer>
+
+        </section>
+        <script src="http://acerosalazar.com/js/main.js"></script>
+
+
+  
+<script>
+(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+ga('create', 'UA-63180528-2', 'auto');
+ga('send', 'pageview');
+</script>
+
+
+
+    </body>
+</html>

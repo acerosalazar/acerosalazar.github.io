@@ -223,7 +223,8 @@ ul {
 }
 
 li {
-    list-style-position: inside;
+    list-style-position: outside;
+    margin-left: 15px;
 }
 
 ul>li {
@@ -774,4 +775,27 @@ a.symbol:hover {
 
 .md-alert {
   color: #d0021b
+}
+
+/* Customization */
+
+p code, blockquote code, li code {
+    font-family: 'Menlo', 'Monaco', Courier, monospace;
+    font-size: 14px;
+}
+
+div.center {
+    margin : auto;
+    width: 50%;
+}
+
+span.center {
+    margin: 0 auto;
+    display: table;
+}
+
+span.separator {
+    text-align: center;
+    letter-spacing: 5px;
+    margin-bottom: 10px;
 }
