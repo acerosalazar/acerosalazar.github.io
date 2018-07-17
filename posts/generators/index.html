@@ -6,7 +6,7 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 		<meta name="author" content="Felix J. Acero">
 		<meta name="description" content="Felix J. Acero · Software engineer">
-		<meta name="generator" content="Hugo 0.40.3" />
+		<meta name="generator" content="Hugo 0.43" />
 		<title>Generators &middot; Felix J. Acero</title>
 		<link rel="shortcut icon" href="http://acerosalazar.com/images/favicon.ico">
 		<link rel="stylesheet" href="http://acerosalazar.com/css/style.css">
@@ -87,7 +87,7 @@
         <span style="font-weight:bold">let</span> <span style="color:#008080">sortedInput</span> = sort(input)
 
         <span style="color:#998;font-style:italic">// Then</span>
-        assertTrue(isSorted(sortedInput), <span style="color:#b84">&#34;</span><span style="color:#b84">\(</span>sortedInput<span style="color:#b84">)</span><span style="color:#b84"> is not sorted&#34;</span>)
+        XCTAssertTrue(isSorted(sortedInput), <span style="color:#b84">&#34;</span><span style="color:#b84">\(</span>sortedInput<span style="color:#b84">)</span><span style="color:#b84"> is not sorted&#34;</span>)
     }
 }</code></pre></div>
 <p>We start off by selecting a random <code>size</code> for the <code>input</code> array. Then we use the <code>IntGenerator</code> type to create an array with random integers in the range <code>0..&lt;100</code>. In the <code>when</code> section, we invoke the <code>sort</code> function passing our randomly generated input to it. Towards the end of the test, we make use of the <code>isSorted</code> utility function to verify that the <code>sortedInput</code> has been properly sorted. To make our test more exhaustive, we wrap all the test code inside of a <code>for-loop</code>, which will cause the test to run a 100 times, using inputs of different sizes and values each time.</p>
@@ -227,13 +227,16 @@
 
   
 <script>
-(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
-(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
-m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
-})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
-
-ga('create', 'UA-63180528-2', 'auto');
-ga('send', 'pageview');
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-63180528-2', 'auto');
+	
+	ga('send', 'pageview');
+}
 </script>
 
 

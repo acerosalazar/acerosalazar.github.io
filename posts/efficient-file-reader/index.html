@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en-us">
+	<head>
+		<meta charset="utf-8">
+		<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<meta name="author" content="Felix J. Acero">
+		<meta name="description" content="Felix J. Acero · Software engineer">
+		<meta name="generator" content="Hugo 0.43" />
+		<title>Memory Efficient File Reader &middot; Felix J. Acero</title>
+		<link rel="shortcut icon" href="http://acerosalazar.com/images/favicon.ico">
+		<link rel="stylesheet" href="http://acerosalazar.com/css/style.css">
+		<link rel="stylesheet" href="http://acerosalazar.com/css/font-awesome.min.css">
+	</head>
+
+    <body>
+       <nav class="main-nav">
+	
+	
+		<a href='http://acerosalazar.com/'>Home</a>
+	
+	<a href='http://acerosalazar.com/posts'>Posts</a>
+	<a href='http://acerosalazar.com/about'>About</a>
+	
+</nav>
+
+        <section id="wrapper" class="post">
+            <article>
+                <header>
+                    <h1>
+                        Memory Efficient File Reader
+                    </h1>
+                    <h2 class="headline">
+                    Jul 6, 2018
+                    · 9 minute read
+                    </h2>
+                </header>
+                <section id="post-body">
+                    
+
+<h3 id="tl-dr">TL;DR</h3>
+
+<blockquote>
+<ul>
+<li>The <code>FileHandle</code> class offers APIs for reading a file one chunk at the time</li>
+<li>This capability may come handy when dealing with very large files that cannot be read completely into main memory.</li>
+<li>We can combine the <code>FileHandle</code> and the <code>Sequence</code> APIs to build a <code>FileReader</code> class that will helps us read the contents of a file one line at the time while keeping the memory footprint low.</li>
+</ul>
+</blockquote>
+
+<div class="center"><span class="center separator">***</span></div>
+
+
+<p>Reading the contents of a file using Swift&rsquo;s standard library can be done via the <code>String</code> initializer <code>init(contentsOf: URL, encoding: String.Encoding)</code>. This API will load all the contents of the file at the given <code>URL</code> into main memory and interpret it using the given encoding (e.g: <code>.utf8</code>).</p>
+<div class="highlight"><pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-swift" data-lang="swift"><span style="color:#998;font-style:italic">// ... </span>
+<span style="font-weight:bold">let</span> <span style="color:#008080">fileURL</span> = URL(...)
+<span style="font-weight:bold">let</span> <span style="color:#008080">fileContents</span> = <span style="font-weight:bold">try</span>? <span style="color:#999">String</span>(contentsOf: fileURL, encoding: .utf8)
+<span style="color:#998;font-style:italic">// ..</span></code></pre></div>
+<p>This approach will work perfectly fine when dealing with relatively small files whose contents can be completely loaded into memory. The same approach, however,  will have a much harder time dealing with larger files.</p>
+
+<p>Imagine, for instance, that you are given a very large file (~ 5 GB) that needs to be processed in some way –e.g you need to extract the last N lines of a log file or find the most expensive transaction in a transaction log. In this case, loading the entire file into memory may not be possible at all.</p>
+
+<h3 id="enter-filehandle">Enter: <code>FileHandle</code></h3>
+
+<p>The <a href="https://developer.apple.com/documentation/foundation/filehandle"><code>FileHandle</code></a> is a Foundation class that can be used, among other things, to access data associated with a file.</p>
+
+<p>According to the documentation:</p>
+
+<blockquote>
+<p>You use file handle objects to access data associated with files, sockets, pipes, and devices. For files, you can read, write, and seek within the file. For sockets, pipes, and devices, you can use a file handle object to monitor the device and process data asynchronously [<sup class="footnote-ref" id="fnref:1"><a href="#fn:1">1</a></sup>]</p>
+</blockquote>
+
+<p>For our case, the most relevant capability of a <code>FileHandle</code> object is the possibility of reading specific chunks of a file using the <code>readData(ofLength: Int) -&gt; Data</code> and the <code>seek(toFileOffset: UInt64)</code> APIs.</p>
+
+<p>These two APIs would allow us to write a function that reads the contents of a file one chunk at the time, passing the read contents to a processing block.</p>
+<div class="highlight"><pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-swift" data-lang="swift"><span style="font-weight:bold">func</span> <span style="color:#900;font-weight:bold">processFile</span>(path: <span style="color:#999">String</span>, chunkSize: <span style="color:#999">Int</span>, block: (Data) -&gt; <span style="color:#999">Void</span>) {
+    <span style="font-weight:bold">guard</span> <span style="font-weight:bold">let</span> <span style="color:#008080">fileHandle</span> = FileHandle(forReadingAtPath: path) <span style="font-weight:bold">else</span> {
+        debugPrint(<span style="color:#b84">&#34;Could not open file handle for file: </span><span style="color:#b84">\(</span>fileName<span style="color:#b84">)</span><span style="color:#b84">&#34;</span>)
+        <span style="font-weight:bold">return</span>
+    }
+    fileHandle.seek(toFileOffset: <span style="color:#099">0</span>)
+    <span style="font-weight:bold">var</span> <span style="color:#008080">hasData</span>: <span style="color:#999">Bool</span> = <span style="font-weight:bold">true</span>
+    <span style="font-weight:bold">repeat</span> {
+        <span style="font-weight:bold">let</span> <span style="color:#008080">data</span> = fileHandle.readData(ofLength: chunkSize)
+        hasData = data.count <span style="font-weight:bold">&gt;</span> <span style="color:#099">0</span>
+        <span style="font-weight:bold">if</span> hasData {
+            block(data)
+        }
+    } <span style="font-weight:bold">while</span> hasData
+}</code></pre></div>
+<p>The advantage of this approach over the approach that uses the <code>String</code> initializer, is that not matter how big is the file, we will always be able to go through its contents and perform some kind of processing while keeping the memory footprint very low.</p>
+
+<p>Using this approach is not completely <em>free</em>, though.</p>
+
+<p>Now, instead of paying the memory cost, we are paying by the latency involved in accessing the file system several times, which will detract on the performance qualities of the solution.  In some problems – e.g: retrieving the last N lines of a log file, we will be able to get away by accessing the file one or two times. In other problems – e.g: finding the most expensive transaction in a transaction log, we may have to access the file many more times, which is expensive, but is a better option that not being able to solve the problem at all due to lack of memory.</p>
+
+<p>Fortunately, in cases where we are dealing with a file that contains a collection of records – e.g: a transaction log, the cost of accessing the file can be amortized [<sup class="footnote-ref" id="fnref:2"><a href="#fn:2">2</a></sup>] over a sequence of read operations by increasing the amount of data fetched each time. This way, the cost of reading the first line will be rather large (since it will first need to load a chunk of the file into main memory), while the subsequent <code>M</code> reads would be much faster, thus balancing out the cost payed by the first read.</p>
+
+<h3 id="implementing-a-memory-efficient-filereader">Implementing a memory efficient <code>FileReader</code></h3>
+
+<p>So far we have seen how the <code>FileHandle</code> class offers a couple of APIs that can be used to efficiently read the contents of a very large file. In the rest of this post we will build a <code>FileReader</code> class that will leverage these APIs to read the contents of a text file one line at the time. To make the API of this class easier to work with we will also add conformance to the <code>Sequence</code> type, which will bring in default implementations for common collection operations like: <code>map</code>, <code>filter</code>, <code>forEach</code>, <code>prefix</code>, etc.</p>
+
+<p>Ultimately, the client code we are aiming for should look like this:</p>
+<div class="highlight"><pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-swift" data-lang="swift"><span style="font-weight:bold">func</span> <span style="color:#900;font-weight:bold">readFile</span>(url: URL, lines: <span style="color:#999">Int</span>, block: (<span style="color:#999">String</span>) -&gt; void) <span style="font-weight:bold">throws</span> {
+    <span style="font-weight:bold">guard</span> <span style="font-weight:bold">let</span> <span style="color:#008080">fileReader</span> = FileReader(url: url) <span style="font-weight:bold">else</span> {
+        debugPrint(<span style="color:#b84">&#34;Could not read file at: </span><span style="color:#b84">\(</span>url<span style="color:#b84">)</span><span style="color:#b84">&#34;</span>)
+        <span style="font-weight:bold">return</span>
+    }
+    fileReader.<span style="font-weight:bold">prefix</span>(lines).forEach(block)
+} </code></pre></div>
+<p>Let&rsquo;s start off by defining the initializer of our class. Even though in the snippet above we used a initializer with the file <code>URL</code> as the only parameter, there are several configuration options that we should offer to client code, namely:</p>
+
+<ul>
+<li><code>delimiter</code>: The token used for chunking the read data. We would use the newline <code>\n</code> character as the default value</li>
+<li><code>encoding</code>: The expected string encoding of the file. The default value should be  <code>.utf8</code></li>
+<li><code>chunkSize</code>: The amount of data that should be fetched from the file each time. This parameter will give us control over how much memory we want to use versus how many times we want to access the file. A small value will imply lower memory usage but more frequent file reads. A large value, in contrast, will imply larger memory usage but less frequent file accesses. Depending on the use case we may wish to favor one variable over the other. For our implementation we would use a rather arbitrary value of <code>4_096</code> bytes.</li>
+</ul>
+
+<p>Finally, our initializer should also take care of initializing two variables, the <code>fileHandle</code> instance that we will use for reading the file, and a private <code>buffer</code> where we will store the data read from the file.</p>
+<div class="highlight"><pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-swift" data-lang="swift"><span style="font-weight:bold">class</span> <span style="color:#458;font-weight:bold">FileReader</span> {
+
+    <span style="color:#998;font-style:italic">// </span><span style="color:#999;font-weight:bold;font-style:italic">MARK:</span><span style="color:#998;font-style:italic"> - Private Members</span>
+
+    <span style="font-weight:bold">private</span> <span style="font-weight:bold">let</span> <span style="color:#008080">file</span>: URL
+    <span style="font-weight:bold">private</span> <span style="font-weight:bold">let</span> <span style="color:#008080">delimiter</span>: Data
+    <span style="font-weight:bold">private</span> <span style="font-weight:bold">let</span> <span style="color:#008080">chunkSize</span>: <span style="color:#999">Int</span>
+    <span style="font-weight:bold">private</span> <span style="font-weight:bold">let</span> <span style="color:#008080">encoding</span>: <span style="color:#999">String</span>.Encoding
+    <span style="font-weight:bold">private</span> <span style="font-weight:bold">let</span> <span style="color:#008080">fileHandle</span>: FileHandle
+    <span style="font-weight:bold">private</span> <span style="font-weight:bold">var</span> <span style="color:#008080">buffer</span>: Data
+
+    <span style="color:#998;font-style:italic">// </span><span style="color:#999;font-weight:bold;font-style:italic">MARK:</span><span style="color:#998;font-style:italic"> - Initializers</span>
+
+    <span style="font-weight:bold">init</span>(file: URL,
+         delimiter: <span style="color:#999">String</span> = <span style="color:#b84">&#34;</span><span style="color:#b84">\n</span><span style="color:#b84">&#34;</span>,
+         encoding: <span style="color:#999">String</span>.Encoding = .utf8,
+         chunkSize: <span style="color:#999">Int</span> = <span style="color:#099">4_096</span>) <span style="font-weight:bold">throws</span> {
+        <span style="font-weight:bold">self</span>.file = file
+        <span style="font-weight:bold">self</span>.delimiter = delimiter.data(using: .utf8)<span style="font-weight:bold">!</span>
+        <span style="font-weight:bold">self</span>.encoding  = encoding
+        <span style="font-weight:bold">self</span>.chunkSize = chunkSize
+        <span style="font-weight:bold">self</span>.buffer = Data()
+        <span style="font-weight:bold">self</span>.fileHandle = <span style="font-weight:bold">try</span> FileHandle(forReadingFrom: file)
+    }
+
+}</code></pre></div>
+<p>We will now focus on the implementation of the <code>readLine() -&gt; String?</code> API, which is where most of the work happens.</p>
+<div class="highlight"><pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-swift" data-lang="swift"><span style="font-weight:bold">class</span> <span style="color:#458;font-weight:bold">FileReader</span> {
+
+    <span style="color:#998;font-style:italic">// ...</span>
+
+    <span style="font-weight:bold">func</span> <span style="color:#900;font-weight:bold">readLine</span>() -&gt; <span style="color:#999">String</span>? {
+        <span style="font-weight:bold">var</span> <span style="color:#008080">nextLine</span>: Data? = <span style="font-weight:bold">nil</span>
+        <span style="font-weight:bold">var</span> <span style="color:#008080">eof</span>: <span style="color:#999">Bool</span> = <span style="font-weight:bold">false</span>
+        <span style="font-weight:bold">while</span> eof == <span style="font-weight:bold">false</span> <span style="font-weight:bold">&amp;&amp;</span> nextLine == <span style="font-weight:bold">nil</span> {
+            <span style="font-weight:bold">if</span> <span style="font-weight:bold">let</span> <span style="color:#008080">range</span> = buffer.range(of: delimiter, options: []) {
+                nextLine = buffer.<span style="font-weight:bold">prefix</span>(upTo: range.lowerBound)
+                buffer = buffer.suffix(from: range.upperBound)
+            } <span style="font-weight:bold">else</span> {
+                <span style="font-weight:bold">let</span> <span style="color:#008080">newData</span> = fileHandle.readData(ofLength: chunkSize)
+                eof = newData.count == <span style="color:#099">0</span>
+                buffer <span style="font-weight:bold">+=</span> newData
+            }
+        }
+        <span style="font-weight:bold">return</span> nextLine.flatMap { <span style="color:#999">String</span>(data: <span style="color:#008080">$0</span>, encoding: .utf8) }
+    }
+}</code></pre></div>
+<p>At the core of this method there is a loop that will attempt to read chunks of data from the file into the <code>buffer</code> until the next instance of the <code>delimiter</code> is found or until the end of the file (<code>eof</code>) is reached. In case the <code>delimiter</code> is found, the data in the <code>buffer</code> is split in two parts: one part containing the <code>nextLine</code>, and the other containing the the data that will be preserved in the <code>buffer</code>.</p>
+
+<p>Notice the important role that the <code>buffer</code> variable is playing in helping us reduce the number of times that we access the file system. Since we don&rsquo;t know where the next <code>delimiter</code> will be, we first read <code>4_096</code> bytes and then perform a linear search looking for the next appearance of the <code>delimiter</code>. Given the moderate amount of bytes read, it is likely that the read data will contain several instances of the <code>delimiter</code>. Therefore, instead of extracting the data of the <code>nextLine</code> and throwing away rest of the bytes, we store the rest of the bytes in the <code>buffer</code> and repeat the search process until there are no more <code>delimiter</code> instances left in it; at which point we will try to load more data from the underlying file and repeat the previous process.</p>
+
+<p>Finally, a word of caution. The <em>stop conditions</em> in the above implementation are a bit simplified. If we are not careful, the main loop may end up reading the whole file into memory (which is precisely what we are trying to avoid). One way to prevent this issue is to define a <em>maximum amount of reads</em> that can be done before giving up on finding the next <em>delimiter</em> and simply returning all the contents in the <em>buffer</em>. For the sake of simplicity, in this post we will look past this issue. You can find a complete implementation of the <code>FileReader</code> class that manages <em>this</em> and other cases in this <a href="https://gist.github.com/acerosalazar/5749f338a7daf903db7266f146768b62">gist</a>.</p>
+
+<h3 id="adding-sequence-conformance">Adding <code>Sequence</code> conformance</h3>
+
+<p>If you think about it, the <code>FileReader</code> class is essentially a sequence of <code>Strings</code>. The fact that these <code>Strings</code> are coming from a file, and that this file is being read in chunks is just an implementation detail.</p>
+
+<p>As we have discussed in previous posts: (<a href="http://acerosalazar.com/posts/generators/">Generators</a>, <a href="http://acerosalazar.com/posts/queues/">Queues</a>), having our collection types conform to <code>Sequence</code> can bring in a lot of functionality for <em>free</em>, allowing client code to use familiar APIs like: <code>map</code>, <code>filter</code>, <code>forEach</code> and <code>prefix</code> in our data structures.</p>
+
+<p>One of the best features about the <code>Sequence</code> type, is that adding conformance to it in custom types is usually very easy, especially when types also declare conformance to the <code>IteratorProtocol</code> type. In fact, making our <code>FileReader</code> class conform to it, will only require us to declare conformace to the <code>Sequence</code> and <code>IteratorProtocol</code> types, and change the name of our <code>readLine</code> API for <code>next</code>. That&rsquo;s it!.</p>
+
+<p>With these changes in place, we will be able to write the following client code:</p>
+<div class="highlight"><pre style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-swift" data-lang="swift"><span style="font-weight:bold">func</span> <span style="color:#900;font-weight:bold">readFile</span>(url: URL, lines: <span style="color:#999">Int</span>, block: (<span style="color:#999">String</span>) -&gt; void) <span style="font-weight:bold">throws</span> {
+    <span style="font-weight:bold">guard</span> <span style="font-weight:bold">let</span> <span style="color:#008080">fileReader</span> = FileReader(url: url) <span style="font-weight:bold">else</span> {
+        debugPrint(<span style="color:#b84">&#34;Could not read file at: </span><span style="color:#b84">\(</span>url<span style="color:#b84">)</span><span style="color:#b84">&#34;</span>)
+        <span style="font-weight:bold">return</span>
+    }
+    <span style="color:#998;font-style:italic">// We can use `prefix` and `forEach` thanks to the conformance to `Sequence`</span>
+    fileReader.<span style="font-weight:bold">prefix</span>(lines).forEach(block)
+}</code></pre></div><div class="footnotes">
+
+<hr />
+
+<ol>
+<li id="fn:1"><a href="https://developer.apple.com/documentation/foundation/filehandle">https://developer.apple.com/documentation/foundation/filehandle</a>
+ <a class="footnote-return" href="#fnref:1"><sup>[return]</sup></a></li>
+<li id="fn:2"><a href="https://en.wikipedia.org/wiki/Amortized_analysis">https://en.wikipedia.org/wiki/Amortized_analysis</a>
+ <a class="footnote-return" href="#fnref:2"><sup>[return]</sup></a></li>
+</ol>
+</div>
+
+                </section>
+            </article>
+            <footer id="footer">
+    
+        <div id="social">
+	
+    <a class="symbol" href="https://www.github.com/acerosalazar">
+        <i class="fa fa-github-square"></i>
+    </a>
+  
+    <a class="symbol" href="https://www.linkedin.com/in/felix-javier-acero-salazar-8979985b/">
+        <i class="fa fa-linkedin-square"></i>
+    </a>
+  
+    <a class="symbol" href="https://www.twitter.com/acerosalazar">
+        <i class="fa fa-twitter-square"></i>
+    </a>
+  
+</div>
+
+    
+    <p class="small">
+        Copyright © 2018 Felix J. Acero
+    </p>
+    <p class="small">
+      Powered by <a href="http://www.gohugo.io/">Hugo
+    </p>
+</footer>
+
+        </section>
+        <script src="http://acerosalazar.com/js/main.js"></script>
+
+
+  
+<script>
+var doNotTrack = false;
+if (!doNotTrack) {
+	(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	})(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+	ga('create', 'UA-63180528-2', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+
+
+
+    </body>
+</html>
